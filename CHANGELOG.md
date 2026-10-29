@@ -1,3 +1,8 @@
+## v0.1.3 – 2026-10-29
+
+- Standortsamples auch beim Besuch anderer Torn-Seiten im Hintergrund (maximal ein neuer Abgleich je 15 Minuten); das Dashboard selbst erscheint weiterhin nur im Hospital.
+- Fehlende Offline-Zeit bleibt unbekannt, keine künstlich hochgerechneten Aufenthaltsstunden.
+
 ## v0.1.2 – 2026-10-29
 
 - Zeigt jetzt alle identifizierten Angreifer mit Profil-Link, nicht nur Wiederholungstäter; Mehrfachtäter werden mit Stern markiert.
