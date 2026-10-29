@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Attack Intelligence – Hospital Dashboard
 // @namespace    https://github.com/PatchPilotGer/torn-attack-intelligence
-// @version      0.1.0
+// @version      0.1.1
 // @description  Incoming attacks, repeat offenders, mugging losses and location coverage on Torn's Hospital page (TornPDA).
 // @author       PatchPilotGer
 // @match        https://www.torn.com/*
@@ -22,7 +22,7 @@
   if (document.getElementById('tai-root')) return;
 
   const API_KEY = '###PDA-APIKEY###';
-  const VERSION = '0.1.0';
+  const VERSION = '0.1.1';
   const DB_KEY = 'tai-db-v1';
   const MAX_PAGES_REGULAR = 3;
   const MAX_PAGES_BACKFILL = 12;
@@ -147,7 +147,9 @@
   }
   function inferPlace(profile, travel) {
     const status = profile?.status || {};
-    if (/travel/i.test(String(status.state || ''))) return 'Flug';
+    const state = String(status.state || '').toLowerCase();
+    if (state === 'traveling' || state === 'travelling') return 'Flug';
+    if (state === 'abroad') return 'Ausland';
     const destination = String(travel?.destination || '').trim();
     if (COUNTRY_NAMES.includes(destination)) return destination === 'Torn City' ? 'Torn City' : 'Ausland';
     const info = String(status.description || '') + ' ' + String(status.details || '');
@@ -166,8 +168,8 @@
   }
   async function fetchCurrentLocation() {
     const [a,b] = await Promise.allSettled([callApi('user/basic'), callApi('user/travel')]);
-    const profile = a.status === 'fulfilled' ? a.value.profile : null;
-    const travel = b.status === 'fulfilled' ? b.value.travel : null;
+    const profile = a.status === 'fulfilled' ? (a.value.profile || a.value.basic || a.value) : null;
+    const travel = b.status === 'fulfilled' ? (b.value.travel || b.value) : null;
     if (profile || travel) addPlaceSample(inferPlace(profile, travel));
   }
   async function sync(backfill = false) {
@@ -257,7 +259,7 @@
     for (const a of attacks) { const d = new Date(a.ended*1000); cells[((d.getUTCDay()+6)%7)*24+d.getUTCHours()]++; }
     const max = Math.max(1,...cells);
     const week = ['Mo','Di','Mi','Do','Fr','Sa','So'];
-    return '<div class="tai-heatwrap"><div class="tai-heat">' + week.map((day,i)=>`<div class="tai-daylabel">${day}</div>` + Array.from({length:24},(_,hour)=>`<div class="tai-cell" title="${day} ${hour}:00 UTC – ${cells[i*24+hour]} Angriffe" style="opacity:${(0.12 + 0.88*cells[i*24+hour]/max).toFixed(2)}"></div>`).join('')).join('') + '</div><div class="tai-muted">Je Zeile Mo–So, je 24 Spalten (0–23 Uhr UTC). Dunkler = häufiger.</div></div>';
+    return '<div class="tai-heatwrap"><div class="tai-heat">' + week.map((day,i)=>`<div class="tai-daylabel">${day}</div>` + Array.from({length:24},(_,hour)=>`<div class="tai-cell" title="${day} ${hour}:00 UTC – ${cells[i*24+hour]} Angriffe" style="opacity:${(0.12 + 0.88*cells[i*24+hour]/max).toFixed(2)}"></div>`).join('')).join('') + '</div><div class="tai-muted">Je Zeile Mo–So, je 24 Spalten (0–23 Uhr UTC). Heller = häufiger.</div></div>';
   }
   function getCoverage(attacks) {
     const start = selectedFrom();
@@ -282,7 +284,9 @@
   }
   function renderLocations(attacks) {
     const {counts, covered} = getCoverage(attacks);
-    return `<div class="tai-location-grid">${['Torn City','Ausland'].map(place=>{
+    const lastSample=db.samples.at(-1);
+    const current=lastSample?`Letzter Standort-Sample: ${lastSample.place} (${titleDate(lastSample.ts)} UTC); ${db.samples.length} Beobachtungen insgesamt. Aufenthaltszeit entsteht erst durch zwei übereinstimmende Samples innerhalb von 60 Minuten.`:'Noch keine zuverlässigen Standort-Samples. Die Erfassung startet erst mit erfolgreichen Standortabfragen; frühere Reisen können nicht rückwirkend rekonstruiert werden.';
+    return `<div class="tai-muted" style="margin-bottom:8px">${esc(current)}</div><div class="tai-location-grid">${['Torn City','Ausland'].map(place=>{
       const hrs = covered[place] / 3600;
       const rate = hrs >= 1 ? (counts[place]*24/hrs).toFixed(2).replace('.',',') : '—';
       return `<div class="tai-loc"><b>${place}</b><strong>${number(counts[place])}</strong><small>${hrs.toFixed(1).replace('.',',')} h gesichert beobachtet</small><div>${rate} Angriffe / 24 h</div></div>`;
@@ -295,7 +299,7 @@
       <div id="tai-content"><div class="tai-toolbar"><select id="tai-period" aria-label="Zeitraum"><option value="1">24 Stunden</option><option value="7" selected>7 Tage</option><option value="30">30 Tage</option><option value="all">Gesamt</option></select><button id="tai-refresh">↻ Aktualisieren</button><button id="tai-backfill" title="Längeren Verlauf nachladen">⤓ Historie</button></div>
       <p id="tai-message" class="tai-muted">Lade lokale Historie…</p><div id="tai-kpis"></div>
       <div class="tai-section"><h3>Angriffe · Tag / Woche / Monat</h3><div class="tai-tabs"><button data-group="day" class="active">Tag</button><button data-group="week">Woche</button><button data-group="month">Monat</button></div><div id="tai-timeseries"></div></div>
-      <div class="tai-section"><h3>Wiederholungstäter</h3><div id="tai-repeaters"></div></div>
+      <div class="tai-section"><h3>Bekannte Angreifer & Wiederholungstäter</h3><div id="tai-repeaters"></div></div>
       <div class="tai-section"><h3>Geldverluste</h3><div id="tai-money"></div></div>
       <div class="tai-section"><h3>Heatmap · UTC</h3><div id="tai-heatmap"></div></div>
       <div class="tai-section"><h3>Torn City vs. Ausland</h3><div id="tai-locations"></div></div>
@@ -322,11 +326,14 @@
     if (!root) return;
     const s = makeStats();
     const repeats = s.known.filter(k=>k.hits>=2);
-    const kpis=[['Angriffe',number(s.attacks.length)],['Geldverlust (belegt)',money(s.loss)],['Anonyme Angriffe',number(s.anonymous)],['Wiederholungstäter',number(repeats.length)]];
+    const kpis=[['Angriffe',number(s.attacks.length)],['Geldverlust (belegt)',s.verifiedMugs>0?money(s.loss):'—'],['Anonyme Angriffe',number(s.anonymous)],['Wiederholungstäter',number(repeats.length)]];
     node('tai-kpis').innerHTML=kpis.map(([label,value])=>`<div class="tai-kpi"><small>${esc(label)}</small><strong>${esc(value)}</strong></div>`).join('');
     node('tai-timeseries').innerHTML=renderBars(buildSeries(s.attacks, group==='day'?utcDate:group==='week'?utcWeek:utcMonth));
-    node('tai-repeaters').innerHTML=repeats.length ? `<div style="overflow-x:auto"><table class="tai-table"><thead><tr><th>Spieler</th><th>Angriffe</th><th>Verlust*</th><th>Zuletzt</th><th>Blacklist</th></tr></thead><tbody>${repeats.map(r=>`<tr><td><a href="https://www.torn.com/profiles.php?XID=${r.id}" target="_self">${esc(r.name)}</a></td><td>${number(r.hits)}</td><td>${money(r.priced?r.loss:null)}</td><td>${titleDate(r.last)}</td><td><a class="tai-action" href="https://www.torn.com/profiles.php?XID=${r.id}" target="_self">Profil ↗</a></td></tr>`).join('')}</tbody></table></div><div class="tai-muted">*Verlust nur aus zugeordneten Mugging-Logs; fehlende Logbeträge bleiben unbekannt.</div>`:'<div class="tai-muted">Noch keine bekannten Spieler mit mindestens zwei Angriffen im Zeitraum.</div>';
-    node('tai-money').innerHTML=`<div class="tai-grid2">${[['Bekannte Täter',s.knownLoss],['Anonyme Täter',s.anonLoss],['Nicht zuordenbar',s.unassignedLoss],['Verifizierte Logs',s.verifiedMugs]].map(([label,value],i)=>`<div class="tai-lossbox"><small>${label}</small><strong>${i===3?number(value):money(value)}</strong></div>`).join('')}</div><p class="tai-muted">Beträge sind eine Untergrenze, nicht die Gesamtverluste: ${number(s.unknownMugs)} Mugging-Logs ohne sicher lesbaren Betrag; zudem können historische Logs fehlen. Keine erfundenen $0.</p>`;
+    node('tai-repeaters').innerHTML=s.known.length ? `<div class="tai-muted">${s.known.length} identifizierte Spieler, davon ${repeats.length} Wiederholungstäter (mind. 2 Angriffe). Zum Sperren das Profil öffnen und den Spieler zur Enemies List hinzufügen.</div><div style="overflow-x:auto"><table class="tai-table"><thead><tr><th>Spieler</th><th>Angriffe</th><th>Verlust*</th><th>Zuletzt</th><th>Blacklist</th></tr></thead><tbody>${s.known.map(r=>`<tr><td><a href="https://www.torn.com/profiles.php?XID=${r.id}" target="_self">${esc(r.name)}</a>${r.hits>=2?' <b title="Wiederholungstäter" style="color:#f0c884">★</b>':''}</td><td>${number(r.hits)}</td><td>${money(r.priced?r.loss:null)}</td><td>${titleDate(r.last)}</td><td><a class="tai-action" href="https://www.torn.com/profiles.php?XID=${r.id}" target="_self" title="Spielerprofil öffnen, manuell zur Enemies List hinzufügen">Profil ↗</a></td></tr>`).join('')}</tbody></table></div><div class="tai-muted">*Verlust nur aus zugeordneten Mugging-Logs; fehlende Logbeträge bleiben unbekannt.</div>`:'<div class="tai-muted">Keine Angreifer identifiziert. Anonyme Angriffe lassen keine eindeutige Zuordnung zu.</div>';
+    const hasAmounts=s.verifiedMugs>0;
+    const noLogAccess=(db.meta.apiErrors||[]).some(err=>/Geldbeträge.*(access level|permission|not high enough)/i.test(err));
+    const verifiedOrUnknown=value=>hasAmounts?money(value):'—';
+    node('tai-money').innerHTML=`<div class="tai-grid2">${[['Bekannte Täter',s.knownLoss],['Anonyme Täter',s.anonLoss],['Nicht zuordenbar',s.unassignedLoss],['Verifizierte Logs',s.verifiedMugs]].map(([label,value],i)=>`<div class="tai-lossbox"><small>${label}</small><strong>${i===3?number(value):verifiedOrUnknown(value)}</strong></div>`).join('')}</div><p class="tai-muted">${noLogAccess?'⚠️ Dein TornPDA-API-Key erlaubt keinen Zugriff auf user/log. Für Verlustbeträge benötigst du die Log-Berechtigung (Full oder passender Custom-Key).':'Beträge sind nur verifizierte Teilbeträge, nicht zwangsläufig die Gesamtverluste.'} ${number(s.unknownMugs)} Mugging-Logs ohne sicher lesbaren Betrag; historische Logs können fehlen. „—“ bedeutet unbekannt, nicht $0.</p>`;
     node('tai-heatmap').innerHTML=renderHeatmap(s.attacks);
     node('tai-locations').innerHTML=renderLocations(s.attacks);
   }
