@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Attack Intelligence – Hospital Dashboard
 // @namespace    https://github.com/PatchPilotGer/torn-attack-intelligence
-// @version      0.1.2
+// @version      0.1.3
 // @description  Incoming attacks, repeat offenders, mugging losses and location coverage on Torn's Hospital page (TornPDA).
 // @author       PatchPilotGer
 // @match        https://www.torn.com/*
@@ -18,11 +18,11 @@
 (() => {
   'use strict';
   if (window.top !== window.self) return;
-  if (!/^\/(hospitalview|hospital)\.php$/i.test(location.pathname)) return;
-  if (document.getElementById('tai-root')) return;
+  const IS_HOSPITAL = /^\/(hospitalview|hospital)\.php$/i.test(location.pathname);
+  if (IS_HOSPITAL && document.getElementById('tai-root')) return;
 
   const API_KEY = '###PDA-APIKEY###';
-  const VERSION = '0.1.2';
+  const VERSION = '0.1.3';
   const DB_KEY = 'tai-db-v1';
   const MAX_PAGES_REGULAR = 3;
   const MAX_PAGES_BACKFILL = 12;
@@ -356,7 +356,17 @@
     showMessage('Letzte Aktualisierung: '+last+(hasNativeStorage?' · PDA-Speicher':' · Browser-Speicher'));
     if (!db.meta.updated || Math.floor(Date.now()/1000)-db.meta.updated >= 300) await sync(false);
   }
-  // The Hospital page can render late. DOM observer only waits for the parent container.
-  if (document.body) init().catch(err=>console.error('[Attack Intelligence]',err));
-  else document.addEventListener('DOMContentLoaded',()=>init().catch(err=>console.error('[Attack Intelligence]',err)),{once:true});
+  // Collect sparse, verifiable location samples across Torn, but show the dashboard only in Hospital.
+  // Throttle to one fresh sample per 15 minutes; never assume activity during offline gaps.
+  async function backgroundSample() {
+    if (typeof PDA_httpGet !== 'function') return;
+    await readDb();
+    const last = db.samples[db.samples.length - 1];
+    if (last && Math.floor(Date.now()/1000) - last.ts < 900) return;
+    await fetchCurrentLocation();
+    await saveDb();
+  }
+  const launch = () => (IS_HOSPITAL ? init() : backgroundSample()).catch(err => console.error('[Attack Intelligence]',err));
+  if (document.body) launch();
+  else document.addEventListener('DOMContentLoaded',launch,{once:true});
 })();
