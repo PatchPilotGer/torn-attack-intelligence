@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Attack Intelligence – Hospital Dashboard
 // @namespace    https://github.com/PatchPilotGer/torn-attack-intelligence
-// @version      0.1.1
+// @version      0.1.2
 // @description  Incoming attacks, repeat offenders, mugging losses and location coverage on Torn's Hospital page (TornPDA).
 // @author       PatchPilotGer
 // @match        https://www.torn.com/*
@@ -22,13 +22,13 @@
   if (document.getElementById('tai-root')) return;
 
   const API_KEY = '###PDA-APIKEY###';
-  const VERSION = '0.1.1';
+  const VERSION = '0.1.2';
   const DB_KEY = 'tai-db-v1';
   const MAX_PAGES_REGULAR = 3;
   const MAX_PAGES_BACKFILL = 12;
   const SAMPLE_MAX_GAP = 60 * 60; // No denominator extrapolation across missing observations.
   const LOG_MUG_RECEIVED = 8156;
-  const COUNTRY_NAMES = ['Torn City', 'Mexico', 'Cayman Islands', 'Canada', 'Hawaii', 'United Kingdom', 'Argentina', 'Switzerland', 'Japan', 'China', 'UAE', 'South Africa'];
+  const COUNTRY_NAMES = ['Torn', 'Torn City', 'Mexico', 'Cayman Islands', 'Canada', 'Hawaii', 'United Kingdom', 'Argentina', 'Switzerland', 'Japan', 'China', 'UAE', 'South Africa'];
   const EMPTY = { schema: 1, attacks: {}, mugs: {}, samples: [], meta: { updated: null, apiErrors: [] } };
   let db = JSON.parse(JSON.stringify(EMPTY));
   let range = '7';
@@ -151,7 +151,7 @@
     if (state === 'traveling' || state === 'travelling') return 'Flug';
     if (state === 'abroad') return 'Ausland';
     const destination = String(travel?.destination || '').trim();
-    if (COUNTRY_NAMES.includes(destination)) return destination === 'Torn City' ? 'Torn City' : 'Ausland';
+    if (COUNTRY_NAMES.includes(destination)) return destination === 'Torn' || destination === 'Torn City' ? 'Torn City' : 'Ausland';
     const info = String(status.description || '') + ' ' + String(status.details || '');
     if (/travel(ing|ling)/i.test(info)) return 'Flug';
     if (/torn city/i.test(info)) return 'Torn City';
