@@ -10,8 +10,8 @@ const attacks = [
 {id:1003,started:now-230,ended:now-200,result:'Mugged',attacker:null}
 ];
 const logs = [
-{id:'a',timestamp:now-398,details:{id:8156},data:{money:5000}},
-{id:'b',timestamp:now-198,details:{id:8156},data:{money:2000}}
+{id:'a',timestamp:now-398,details:{id:8156},data:{money_mugged:5000}},
+{id:'b',timestamp:now-198,details:{id:8156},data:{money_mugged:2000}}
 ];
 const requests=[]; const store=new Map();
 class Node {
